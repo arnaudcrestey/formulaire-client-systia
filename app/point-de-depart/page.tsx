@@ -1,62 +1,38 @@
-import { Cormorant_Garamond } from "next/font/google";
+import Image from "next/image";
 import { PointDeDepartForm } from "@/components/point-de-depart-form";
-
-const signatureFont = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export default function PointDeDepartPage() {
   return (
-    <main className="min-h-screen bg-[#edf1f8] px-4 py-8 text-slate-900 sm:px-6 sm:py-10 lg:px-8 lg:py-16">
-      <div className="mx-auto w-full max-w-5xl">
-        <header className="mb-16 text-center sm:mb-20">
-          <div className="mx-auto flex max-w-md flex-col items-center">
-            <div
-              className={`${signatureFont.className} select-none text-[4.4rem] font-semibold leading-none tracking-[-0.09em] text-[#0d2345] sm:text-[5.8rem]`}
-              aria-label="SYSTIA"
-            >
-              SYSTIA
-            </div>
+    <main>
+      <a className="skip-link" href="#parcours">Aller au parcours</a>
+      <header className="site-header">
+        <a href="https://www.arnaudcrestey.com/" aria-label="Arnaud Crestey, accueil">
+          <Image src="/brand/ac.png" alt="AC, Arnaud Crestey" width={1200} height={630} className="header-logo" priority />
+        </a>
+        <span>COMPRENDRE AVANT D’AGIR</span>
+      </header>
 
-            <p
-              className={`${signatureFont.className} mt-2 text-center text-[1.15rem] font-medium tracking-[-0.03em] text-[#15294a] sm:text-[1.45rem]`}
-            >
-              Conception de systèmes d’activité
-            </p>
+      <section className="hero">
+        <div className="hero-inner">
+          <p className="eyebrow">APRÈS NOTRE RENCONTRE</p>
+          <h1>Imaginons votre <em>futur site</em></h1>
+          <p className="hero-copy">Ce parcours vous aide à poser vos idées avec vos mots. Il n’y a pas de réponse technique à connaître, ni de choix définitif à faire aujourd’hui.</p>
+          <div className="hero-line" />
+          <p className="hero-note">Votre activité. Vos visiteurs. L’univers qui vous ressemble.</p>
+        </div>
+        <div className="hero-signature" aria-hidden="true">
+          <Image src="/brand/signature-ac.png" alt="" width={2000} height={2000} priority />
+        </div>
+      </section>
 
-            <div className="mt-6 h-px w-24 bg-[#cfd7e7]" />
-          </div>
-        </header>
-
-        <section className="mx-auto mb-10 max-w-3xl text-left sm:mb-12">
-          <h1
-            className={`${signatureFont.className} text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.04em] text-[#112347] sm:text-[4rem]`}
-          >
-            Point de départ du projet
-          </h1>
-
-          <div className="mt-6 space-y-5 text-[1.05rem] leading-9 text-slate-600 sm:text-[1.12rem]">
-            <p>
-              Ce document va me permettre de poser une base claire avant de
-              démarrer.
-            </p>
-
-            <p>
-              L’objectif n’est pas de vous demander un travail technique, mais
-              de mieux comprendre votre activité, votre situation et la
-              direction à donner au projet.
-            </p>
-
-            <p>
-              Prenez simplement le temps de répondre avec vos mots. Des réponses
-              courtes suffisent.
-            </p>
-          </div>
-        </section>
-
+      <div id="parcours" className="parcours-shell">
         <PointDeDepartForm />
       </div>
+      <footer className="site-footer">
+        <span>AC · Arnaud Crestey</span>
+        <a href="/confidentialite">Confidentialité</a>
+        <span>Un site utile aujourd’hui, conçu pour évoluer demain.</span>
+      </footer>
     </main>
   );
 }

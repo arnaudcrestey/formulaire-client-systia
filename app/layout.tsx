@@ -2,8 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Point de départ du projet",
-  description: "Formulaire de cadrage projet — arnaudcrestey.com",
+  title: "Préparer votre site | Arnaud Crestey",
+  description: "Un parcours simple pour imaginer votre futur site avec Arnaud Crestey.",
 };
 
 export default function RootLayout({

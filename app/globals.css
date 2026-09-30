@@ -2,26 +2,116 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
-}
+@font-face { font-family: "DM Sans AC"; src: url("/brand/dm-regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "DM Sans AC"; src: url("/brand/dm-semibold.ttf") format("truetype"); font-weight: 600 800; font-display: swap; }
+@font-face { font-family: "Instrument AC"; src: url("/brand/instrument-regular.ttf") format("truetype"); font-weight: 400; font-display: swap; }
 
-body {
-  margin: 0;
-  background:
-    radial-gradient(circle at 14% 0%, rgba(96, 165, 250, 0.16), transparent 34%),
-    radial-gradient(circle at 86% 8%, rgba(129, 140, 248, 0.14), transparent 36%),
-    linear-gradient(180deg, #f6f8fc 0%, #eef2f8 100%);
-  color: #0f172a;
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+:root { --ink: #19231e; --dark: #141b18; --cream: #f7f5ef; --paper: #fffefa; --gold: #dbc699; --bronze: #806438; --muted: #5f6962; --line: #d9ded3; --green: #365449; }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--cream); color: var(--ink); font-family: "DM Sans AC", Arial, sans-serif; line-height: 1.6; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+img { max-width: 100%; }
+:focus-visible { outline: 3px solid #b38c4b; outline-offset: 3px; }
+::selection { background: var(--gold); color: var(--dark); }
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 20; background: var(--paper); padding: 10px 18px; }
+.skip-link:focus { top: 16px; }
 
-* {
-  box-sizing: border-box;
-}
+.site-header { min-height: 82px; padding: 8px clamp(22px,5vw,80px); display: flex; justify-content: space-between; align-items: center; gap: 24px; color: var(--cream); background: #0e1311; border-bottom: 1px solid #dbc69935; }
+.header-logo { width: 105px; height: 55px; object-fit: cover; object-position: center; }
+.site-header span { color: var(--gold); font-size: 11px; letter-spacing: .22em; font-weight: 600; text-align: right; }
+.hero { position: relative; overflow: hidden; min-height: 435px; display: grid; grid-template-columns: minmax(0,1.4fr) minmax(250px,.6fr); align-items: center; gap: 24px; padding: 64px clamp(22px,7vw,110px); background: radial-gradient(ellipse at 78% 50%,#263228 0%,#141b18 40%,#090b0a 100%); color: var(--cream); }
+.hero::after { content: ""; position: absolute; width: 42vw; height: 42vw; right: -8vw; top: -16vw; border: 1px solid #dbc69923; border-radius: 50%; pointer-events: none; }
+.hero-inner { position: relative; z-index: 1; max-width: 800px; }
+.eyebrow { margin: 0 0 20px; color: var(--gold); font-weight: 600; font-size: 11px; letter-spacing: .24em; }
+.hero h1 { margin: 0; max-width: 800px; font-family: "Instrument AC", Georgia, serif; font-size: clamp(54px,6vw,96px); font-weight: 400; letter-spacing: -.035em; line-height: .99; }
+.hero h1 em { color: var(--gold); font-weight: 400; }
+.hero-copy { max-width: 570px; margin: 26px 0 0; color: #d5d6ce; font-size: clamp(16px,1.5vw,19px); line-height: 1.7; }
+.hero-line { width: 75px; height: 1px; margin: 30px 0 18px; background: var(--gold); }
+.hero-note { margin: 0; color: #aab7ac; font-size: 13px; letter-spacing: .03em; }
+.hero-signature { position: relative; z-index: 1; width: min(100%,380px); justify-self: end; filter: drop-shadow(0 20px 50px #0008); }
+.hero-signature img { display: block; width: 100%; height: auto; }
 
-::selection {
-  background: rgba(59, 130, 246, 0.14);
+.parcours-shell { max-width: 1100px; margin: 0 auto; padding: 70px 24px 96px; }
+.intro-row { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 35px; }
+.intro-row h2 { margin: 0; font: 400 clamp(38px,4vw,58px)/1.08 "Instrument AC", Georgia, serif; }
+.intro-row p { max-width: 400px; margin: 0; color: var(--muted); font-size: 14px; }
+.progress-top { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin: 0 0 11px; color: var(--muted); font-size: 13px; }
+.progress-top strong { color: var(--bronze); font-size: 12px; letter-spacing: .14em; }
+.progress-track { width: 100%; height: 3px; background: #dedbd0; margin-bottom: 27px; }
+.progress-track span { display: block; height: 100%; background: var(--bronze); transition: width .3s ease; }
+.wizard { background: var(--paper); border: 1px solid #e4dfd2; box-shadow: 0 24px 70px #24312713; border-radius: 20px; overflow: hidden; }
+.wizard-main { padding: clamp(28px,5vw,58px); min-height: 480px; }
+.step-kicker { color: var(--bronze); font-size: 11px; letter-spacing: .18em; font-weight: 600; }
+.step-title { margin: 12px 0 6px; font: 400 clamp(38px,4vw,56px)/1.05 "Instrument AC", Georgia, serif; }
+.step-subtitle { margin: 0 0 36px; color: var(--muted); }
+.form-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px 26px; }
+.full { grid-column: 1 / -1; }
+.field-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+.field-label small { color: var(--muted); font-weight: 400; }
+.input, .textarea, .select { display: block; width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid #cdcfc7; border-radius: 9px; background: #fff; color: var(--ink); outline: none; }
+.textarea { min-height: 100px; resize: vertical; }
+.input:focus, .textarea:focus, .select:focus { border-color: var(--bronze); box-shadow: 0 0 0 3px #dbc69950; }
+.field-help { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.choice-set { border: 0; padding: 0; margin: 0; min-width: 0; }
+.choice-set legend { margin-bottom: 10px; font-size: 14px; font-weight: 600; }
+.choices { display: flex; flex-wrap: wrap; gap: 9px; }
+.choice { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #d5d4ca; border-radius: 99px; background: #fff; color: #3e473f; font-size: 13px; transition: background .2s,border-color .2s; }
+.choice input { accent-color: var(--green); }
+.choice:has(input:checked) { background: #e8eee8; border-color: #617a69; color: #213d2f; }
+.palette-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.palette-option { display: block; width: 100%; padding: 7px; border: 2px solid #e4e2da; background: white; border-radius: 10px; text-align: left; color: var(--ink); }
+.palette-option[aria-pressed="true"] { border-color: #9b793f; box-shadow: 0 0 0 2px #dbc69970; }
+.swatches { display: grid; grid-template-columns: repeat(4,1fr); height: 40px; overflow: hidden; border-radius: 5px; border: 1px solid #0001; }
+.palette-option span:last-child { display: block; padding: 8px 5px 4px; font-size: 12px; font-weight: 600; }
+.site-preview { display: grid; grid-template-columns: .8fr 1.2fr; min-height: 220px; border: 1px solid #0002; border-radius: 11px; overflow: hidden; }
+.preview-copy { padding: 26px; display: flex; flex-direction: column; justify-content: center; }
+.preview-copy strong { display: block; font: 400 37px/1 "Instrument AC", Georgia, serif; }
+.preview-copy p { font-size: 12px; line-height: 1.5; max-width: 220px; }
+.preview-copy span { display: inline-block; padding: 8px 13px; border-radius: 99px; align-self: flex-start; font-size: 11px; font-weight: 600; }
+.preview-art { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#fff8,#0001); }
+.preview-art div { width: 56%; aspect-ratio: 1; border-radius: 52% 48% 39% 61%; transform: rotate(-18deg); box-shadow: 18px 18px 45px #0002; opacity: .65; }
+.review-section { padding: 20px 0; border-top: 1px solid #e7e4dc; }
+.review-section h3 { margin: 0 0 12px; font: 400 28px "Instrument AC", Georgia, serif; }
+.review-row { display: grid; grid-template-columns: 190px minmax(0,1fr); gap: 10px; padding: 4px 0; font-size: 13px; }
+.review-row dt { color: var(--muted); }
+.review-row dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.privacy-note { border-left: 2px solid var(--gold); padding: 12px 16px; margin: 26px 0 0; background: #f8f6ef; color: #4d574f; font-size: 13px; }
+.privacy-note a { text-decoration: underline; text-underline-offset: 2px; }
+.form-error { margin: 20px 0 0; padding: 12px 15px; border: 1px solid #b86262; background: #fff4f2; border-radius: 8px; color: #8d2e2e; font-size: 13px; }
+.wizard-nav { padding: 22px clamp(28px,5vw,58px); border-top: 1px solid #e8e5dc; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.button { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; padding: 10px 23px; border-radius: 99px; font-weight: 600; font-size: 13px; border: 1px solid transparent; transition: transform .2s,background .2s; }
+.button:hover:not(:disabled) { transform: translateY(-1px); }
+.button:disabled { opacity: .6; cursor: not-allowed; }
+.button-primary { background: var(--green); color: white; }
+.button-primary:hover:not(:disabled) { background: #29493a; }
+.button-secondary { border-color: #c9c8bb; background: transparent; color: var(--ink); }
+.save-note { color: var(--muted); font-size: 11px; text-align: center; }
+.site-footer { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 30px clamp(22px,7vw,110px); background: var(--dark); color: #b8bfb5; font-size: 12px; }
+.site-footer a { text-decoration: underline; }
+
+@media (max-width: 800px) {
+  .hero { grid-template-columns: 1fr; padding-top: 60px; padding-bottom: 50px; }
+  .hero-signature { display: none; }
+  .intro-row { display: block; }
+  .intro-row p { margin-top: 14px; }
+  .palette-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
 }
+@media (max-width: 580px) {
+  .site-header { min-height: 68px; }
+  .site-header span { font-size: 9px; letter-spacing: .1em; }
+  .header-logo { width: 82px; height: 43px; }
+  .parcours-shell { padding: 50px 16px 70px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .full { grid-column: auto; }
+  .palette-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .site-preview { grid-template-columns: 1fr; }
+  .preview-art { display: none; }
+  .review-row { grid-template-columns: 1fr; gap: 0; padding: 6px 0; }
+  .wizard-nav { flex-wrap: wrap; }
+  .wizard-nav .button { flex: 1; }
+  .save-note { width: 100%; order: 3; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto!important; transition: none!important; } }
