@@ -1,295 +1,103 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
-import { options, requiredFields, type PointDeDepartPayload } from "@/lib/point-de-depart";
+import { createBriefPdf } from "@/lib/brief-pdf";
+import {
+  briefSections, contentOptions, emptyBrief, livingOptions, moodOptions,
+  pageOptions, palettes, type ClientBrief,
+} from "@/lib/point-de-depart";
 
-const oneLine = (value?: string | string[]) => {
-  if (Array.isArray(value)) return value.length ? value.join(", ") : "Non renseigné";
-  return value?.trim() ? value.trim() : "Non renseigné";
+export const runtime = "nodejs";
+
+const esc = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+
+const choices: Partial<Record<keyof ClientBrief, readonly string[]>> = {
+  pages: pageOptions, contenus: contentOptions, ambiance: moodOptions,
+  contenusVivants: livingOptions,
+  siteExistant: ["Oui", "Non", "Je ne sais pas"],
+  domaine: ["Oui", "Non", "Je ne sais pas"],
+  hebergementSouhaite: ["Je souhaite en discuter", "Conserver mon hébergement", "Je suis ouvert à une gestion par Arnaud Crestey", "Je ne sais pas"],
+  rythme: ["Plusieurs fois par mois", "Une fois par mois", "Quelques fois par an", "Je ne sais pas encore"],
+  miseAJour: ["Moi ou mon équipe", "Arnaud Crestey", "À décider ensemble", "Je ne sais pas"],
+  budget: ["À définir ensemble", "Moins de 1 000 €", "1 000 à 3 000 €", "3 000 à 7 000 €", "Plus de 7 000 €"],
+  delai: ["Dès que possible", "Dans les prochains mois", "Pas d’urgence", "À définir"],
+  palette: palettes.map((item) => item.id),
 };
 
-const escapeHtml = (value: string) =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-const isAllowedValue = (value: string | undefined, allowed: readonly string[]) =>
-  !value || allowed.includes(value);
-
-function validatePayload(payload: PointDeDepartPayload) {
-  for (const field of requiredFields) {
-    if (!String(payload[field] ?? "").trim()) {
-      return `Le champ requis "${field}" est manquant.`;
+function parseBrief(raw: unknown): { brief?: ClientBrief; error?: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { error: "Réponses invalides." };
+  const incoming = raw as Record<string, unknown>;
+  const brief = { ...emptyBrief };
+  for (const key of Object.keys(emptyBrief) as (keyof ClientBrief)[]) {
+    const value = incoming[key];
+    if (Array.isArray(emptyBrief[key])) {
+      if (!Array.isArray(value) || value.length > 15 || value.some((item) => typeof item !== "string" || item.length > 100)) return { error: "Une sélection est invalide." };
+      (brief as unknown as Record<string, unknown>)[key] = value;
+    } else {
+      const maxLength = key === "ideeLibre" || key === "objectif" || key === "messageEssentiel" || key === "inspirations" || key === "aEviter" ? 2000 : key === "prenom" || key === "nom" ? 80 : key === "email" ? 254 : 300;
+      if (typeof value !== "string" || value.length > maxLength) return { error: "Une réponse est trop longue ou invalide." };
+      (brief as unknown as Record<string, unknown>)[key] = value.trim();
     }
+    const allowed = choices[key];
+    const checked = (brief as unknown as Record<string, string | string[]>)[key];
+    if (allowed && (Array.isArray(checked) ? checked.some((item) => !allowed.includes(item)) : checked && !allowed.includes(checked))) return { error: "Une sélection ne correspond pas aux choix proposés." };
   }
-
-  const checks: Array<[string | undefined, readonly string[]]> = [
-    [payload.anciennete, options.anciennete],
-    [payload.revenusPrincipaux, options.revenusPrincipaux],
-    [payload.offreClaire, options.offreClaire],
-    [payload.resumeSituation, options.resumeSituation],
-    [payload.objectifPrincipal, options.objectifPrincipal],
-    [payload.activiteComprise, options.activiteComprise],
-    [payload.principalDecalage, options.principalDecalage],
-    [payload.identiteExistante, options.identiteExistante],
-    [payload.orientationIdentite, options.orientationIdentite],
-    [payload.mauvaiseExperience, options.mauvaiseExperience],
-    [payload.budget, options.budget],
-    [payload.contrainteDelai, options.contrainteDelai],
-    [payload.implication, options.implication],
-  ];
-
-  if (!checks.every(([value, allowed]) => isAllowedValue(value, allowed))) {
-    return "Une ou plusieurs valeurs de sélection sont invalides.";
-  }
-
-  if (
-    !payload.elementsExistants.every((item) =>
-      (options.elementsExistants as readonly string[]).includes(item),
-    )
-  ) {
-    return "Les éléments existants contiennent une valeur invalide.";
-  }
-
-  if (
-    !payload.perceptionSouhaitee.every((item) =>
-      (options.perceptionSouhaitee as readonly string[]).includes(item),
-    )
-  ) {
-    return "La perception souhaitée contient une valeur invalide.";
-  }
-
-  return null;
+  if (!brief.prenom || !brief.nom || !brief.activite || !brief.clients || !brief.objectif || !brief.actionVisiteur) return { error: "Des réponses essentielles manquent." };
+  if (!/^[^\s@\r\n]+@[^\s@\r\n]+\.[^\s@\r\n]+$/.test(brief.email) || brief.email.length > 254) return { error: "L’adresse e-mail est invalide." };
+  if (brief.siteExistant !== "Oui") brief.adresseSite = "";
+  if (brief.domaine !== "Oui") brief.nomDomaine = "";
+  return { brief };
 }
 
-function sectionHtml(title: string, rows: Array<[string, string | string[] | undefined]>) {
-  return `
-    <section style="margin:0 0 28px;">
-      <h2 style="margin:0 0 12px;font-size:15px;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">
-        ${escapeHtml(title)}
-      </h2>
-      <table style="width:100%;border-collapse:collapse;">
-        ${rows
-          .map(
-            ([label, value]) => `
-              <tr>
-                <td style="vertical-align:top;padding:10px 0;width:240px;color:#475569;font-weight:600;border-top:1px solid #e2e8f0;">
-                  ${escapeHtml(label)}
-                </td>
-                <td style="vertical-align:top;padding:10px 0;color:#0f172a;border-top:1px solid #e2e8f0;">
-                  ${escapeHtml(oneLine(value))}
-                </td>
-              </tr>`,
-          )
-          .join("")}
-      </table>
-    </section>
-  `;
-}
-
-function buildHtmlEmail(data: PointDeDepartPayload) {
-  return `
-    <div style="margin:0;padding:32px 16px;background:#f3f6fb;font-family:Inter,Arial,sans-serif;color:#0f172a;">
-      <div style="max-width:820px;margin:0 auto;">
-        <div style="text-align:center;margin:0 0 24px;">
-          <div style="font-family:Georgia,'Times New Roman',serif;font-size:52px;line-height:1;color:#0f2340;letter-spacing:-0.07em;">
-            <span style="display:inline-block;margin-right:-6px;">A</span><span style="display:inline-block;">C</span>
-          </div>
-          <div style="font-family:Georgia,'Times New Roman',serif;font-size:20px;line-height:1.2;color:#1a2740;margin-top:8px;">
-            arnaudcrestey.com
-          </div>
-          <div style="width:76px;height:1px;background:#cfd5df;margin:18px auto 0;"></div>
-        </div>
-
-        <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:22px;padding:32px;">
-          <p style="margin:0 0 26px;font-size:15px;line-height:1.8;color:#334155;">
-            Un nouveau formulaire <strong>Point de départ du projet</strong> a été transmis.
-          </p>
-
-          ${sectionHtml("Informations", [
-            ["Prénom", data.prenom],
-            ["Nom", data.nom],
-            ["Email", data.email],
-            ["Société / Entreprise", data.entreprise],
-          ])}
-
-          ${sectionHtml("Activité & contexte", [
-            ["Activité", data.activite],
-            ["Ancienneté", data.anciennete],
-            ["Cible", data.cible],
-            ["Valeur", data.valeur],
-            ["Source principale de revenus", data.revenusPrincipaux],
-            ["Offres principales", data.offresPrincipales],
-            ["Offre à mettre en avant", data.offrePrioritaire],
-          ])}
-
-          ${sectionHtml("Situation actuelle", [
-            ["Éléments existants", data.elementsExistants],
-            ["Liens principaux", data.liensPrincipaux],
-            ["Acquisition clients", data.acquisitionClients],
-            ["Première action attendue du futur client", data.premiereActionClient],
-            ["Offre claire", data.offreClaire],
-            ["Résumé situation", data.resumeSituation],
-          ])}
-
-          ${sectionHtml("Objectif du projet", [
-            ["Pourquoi maintenant", data.raisonMaintenant],
-            ["Objectif principal", data.objectifPrincipal],
-            ["Résultat attendu", data.resultatAttendu],
-            ["Impact si réussi", data.impactSiReussi],
-          ])}
-
-          ${sectionHtml("Positionnement & perception", [
-            ["Activité bien comprise", data.activiteComprise],
-            ["Principal décalage", data.principalDecalage],
-            ["Perception souhaitée", data.perceptionSouhaitee],
-            ["À éviter dans l’image", data.aEviterEnImage],
-          ])}
-
-          ${sectionHtml("Univers & références", [
-            ["Identité existante", data.identiteExistante],
-            ["Orientation identité", data.orientationIdentite],
-            ["Références", data.references],
-            ["Ce qui plaît", data.ceQuiPlaitReferences],
-            ["Éléments à transmettre", data.elementsATransmettre],
-          ])}
-
-          ${sectionHtml("Freins & inquiétudes", [
-            ["Inquiétudes", data.inquietudes],
-            ["Mauvaise expérience", data.mauvaiseExperience],
-            ["À éviter cette fois-ci", data.quoiEviterCetteFois],
-            ["À éviter absolument", data.aEviterAbsolument],
-          ])}
-
-          ${sectionHtml("Cadre du projet", [
-            ["Budget", data.budget],
-            ["Contrainte délai", data.contrainteDelai],
-            ["Implication", data.implication],
-            ["Décideurs / validations", data.decideurs],
-            ["Éléments importants", data.elementsImportants],
-          ])}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function buildTextEmail(data: PointDeDepartPayload) {
-  const blocks = [
-    [
-      "INFORMATIONS",
-      `- Prénom : ${oneLine(data.prenom)}`,
-      `- Nom : ${oneLine(data.nom)}`,
-      `- Email : ${oneLine(data.email)}`,
-      `- Société / Entreprise : ${oneLine(data.entreprise)}`,
-    ],
-    [
-      "ACTIVITÉ & CONTEXTE",
-      `- Activité : ${oneLine(data.activite)}`,
-      `- Ancienneté : ${oneLine(data.anciennete)}`,
-      `- Cible : ${oneLine(data.cible)}`,
-      `- Valeur : ${oneLine(data.valeur)}`,
-      `- Source principale de revenus : ${oneLine(data.revenusPrincipaux)}`,
-      `- Offres principales : ${oneLine(data.offresPrincipales)}`,
-      `- Offre à mettre en avant : ${oneLine(data.offrePrioritaire)}`,
-    ],
-    [
-      "SITUATION ACTUELLE",
-      `- Éléments existants : ${oneLine(data.elementsExistants)}`,
-      `- Liens principaux : ${oneLine(data.liensPrincipaux)}`,
-      `- Acquisition clients : ${oneLine(data.acquisitionClients)}`,
-      `- Première action attendue du futur client : ${oneLine(data.premiereActionClient)}`,
-      `- Offre claire : ${oneLine(data.offreClaire)}`,
-      `- Résumé situation : ${oneLine(data.resumeSituation)}`,
-    ],
-    [
-      "OBJECTIF DU PROJET",
-      `- Pourquoi maintenant : ${oneLine(data.raisonMaintenant)}`,
-      `- Objectif principal : ${oneLine(data.objectifPrincipal)}`,
-      `- Résultat attendu : ${oneLine(data.resultatAttendu)}`,
-      `- Impact si réussi : ${oneLine(data.impactSiReussi)}`,
-    ],
-    [
-      "POSITIONNEMENT & PERCEPTION",
-      `- Activité bien comprise : ${oneLine(data.activiteComprise)}`,
-      `- Principal décalage : ${oneLine(data.principalDecalage)}`,
-      `- Perception souhaitée : ${oneLine(data.perceptionSouhaitee)}`,
-      `- À éviter dans l’image : ${oneLine(data.aEviterEnImage)}`,
-    ],
-    [
-      "UNIVERS & RÉFÉRENCES",
-      `- Identité existante : ${oneLine(data.identiteExistante)}`,
-      `- Orientation identité : ${oneLine(data.orientationIdentite)}`,
-      `- Références : ${oneLine(data.references)}`,
-      `- Ce qui plaît : ${oneLine(data.ceQuiPlaitReferences)}`,
-      `- Éléments à transmettre : ${oneLine(data.elementsATransmettre)}`,
-    ],
-    [
-      "FREINS & INQUIÉTUDES",
-      `- Inquiétudes : ${oneLine(data.inquietudes)}`,
-      `- Mauvaise expérience : ${oneLine(data.mauvaiseExperience)}`,
-      `- À éviter cette fois-ci : ${oneLine(data.quoiEviterCetteFois)}`,
-      `- À éviter absolument : ${oneLine(data.aEviterAbsolument)}`,
-    ],
-    [
-      "CADRE DU PROJET",
-      `- Budget : ${oneLine(data.budget)}`,
-      `- Contrainte délai : ${oneLine(data.contrainteDelai)}`,
-      `- Implication : ${oneLine(data.implication)}`,
-      `- Décideurs / validations : ${oneLine(data.decideurs)}`,
-      `- Éléments importants : ${oneLine(data.elementsImportants)}`,
-    ],
-  ];
-
-  return blocks.map((block) => block.join("\n")).join("\n\n");
+function emails(data: ClientBrief) {
+  const sections = briefSections(data);
+  const intro = `Point de départ de ${data.prenom} ${data.nom} (${data.email})`;
+  const text = [intro, "Ce document prépare une discussion. Les choix ne valent ni devis ni validation d'un site.", ...sections.map((section) => [section.title, ...section.rows.map(([label, value]) => `${label} : ${value}`)].join("\n"))].join("\n\n");
+  const html = `<div style="background:#f7f5ef;padding:28px 12px;color:#19231e;font-family:Arial,sans-serif"><div style="max-width:720px;margin:auto;background:#fffefa;padding:34px;border:1px solid #d9ded3"><div style="color:#806438;font-size:12px;letter-spacing:.2em">AC · ARNAUD CRESTEY</div><h1 style="font-family:Georgia,serif;font-weight:normal;font-size:36px;margin:18px 0">Votre point de départ</h1><p>${esc(intro)}</p><p style="color:#5f6962">Ce récapitulatif prépare notre discussion. Il ne vaut ni devis ni validation d’un site.</p>${sections.map((section) => `<h2 style="font-family:Georgia,serif;font-size:24px;font-weight:normal;border-top:1px solid #d9ded3;padding-top:22px;margin-top:30px">${esc(section.title)}</h2><table style="width:100%;border-collapse:collapse">${section.rows.map(([label, value]) => `<tr><td style="width:34%;padding:7px 10px 7px 0;vertical-align:top;color:#806438;font-size:13px">${esc(label)}</td><td style="padding:7px 0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px">${esc(value)}</td></tr>`).join("")}</table>`).join("")}<p style="margin-top:30px;color:#5f6962;font-size:12px">Une question ou une correction ? Répondez à cet e-mail.</p></div></div>`;
+  return { text, html };
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as PointDeDepartPayload;
-    const validationError = validatePayload(body);
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  let sameOrigin = false;
+  try { sameOrigin = !!origin && !!host && new URL(origin).host === host; } catch { /* En-tête invalide. */ }
+  if (!sameOrigin) return NextResponse.json({ error: "Origine de l’envoi invalide." }, { status: 403 });
+  if (!request.headers.get("content-type")?.startsWith("application/json")) return NextResponse.json({ error: "Format non accepté." }, { status: 415 });
 
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 });
-    }
+  try {
+    const rawText = await request.text();
+    if (rawText.length > 30_000) return NextResponse.json({ error: "Les réponses sont trop longues." }, { status: 413 });
+    const raw = JSON.parse(rawText) as Record<string, unknown>;
+    if (raw.website) return NextResponse.json({ ok: true });
+    if (typeof raw.elapsedMs !== "number" || raw.elapsedMs < 3_000) return NextResponse.json({ error: "Veuillez vérifier vos réponses avant de les envoyer." }, { status: 429 });
+    const { brief, error } = parseBrief(raw);
+    if (!brief) return NextResponse.json({ error }, { status: 400 });
 
     const smtpHost = process.env.SMTP_HOST;
     const smtpPort = Number(process.env.SMTP_PORT);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const mailTo = process.env.MAIL_TO || "demande@arnaudcrestey.com";
     const mailFrom = process.env.MAIL_FROM;
+    const mailTo = process.env.MAIL_TO || "demande@arnaudcrestey.com";
+    if (!smtpHost || !smtpPort || !smtpUser || !smtpPass || !mailFrom) return NextResponse.json({ error: "Le service d’envoi est indisponible." }, { status: 503 });
 
-    if (!smtpHost || !smtpPort || !smtpUser || !smtpPass || !mailFrom) {
-      return NextResponse.json(
-        { error: "Configuration email incomplète côté serveur." },
-        { status: 500 },
-      );
-    }
-
+    const pdf = await createBriefPdf(brief);
+    const message = emails(brief);
     const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpPort === 465,
+      host: smtpHost, port: smtpPort, secure: smtpPort === 465,
+      requireTLS: smtpPort !== 465,
       auth: { user: smtpUser, pass: smtpPass },
+      disableFileAccess: true, disableUrlAccess: true,
     });
-
     await transporter.sendMail({
-      from: mailFrom,
-      to: mailTo,
-      subject: `Nouveau point de départ projet — ${body.activite}`,
-      html: buildHtmlEmail(body),
-      text: buildTextEmail(body),
-      replyTo: mailFrom,
+      from: mailFrom, to: brief.email, bcc: mailTo, replyTo: mailTo,
+      subject: "Votre point de départ pour le site · Arnaud Crestey",
+      ...message,
+      attachments: [{ filename: "Mon-point-de-depart-AC.pdf", content: Buffer.from(pdf), contentType: "application/pdf" }],
     });
-
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json(
-      { error: "Impossible d’envoyer le formulaire pour le moment." },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "L’envoi n’a pas pu être confirmé. Veuillez réessayer plus tard." }, { status: 500 });
   }
 }
